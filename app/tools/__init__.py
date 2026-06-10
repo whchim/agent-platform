@@ -1,0 +1,1 @@
+"""tools 包 — calculator / search / mcp_client"""

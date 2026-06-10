@@ -1,0 +1,36 @@
+# Agent Platform 依赖（Python + FastAPI + LangChain + LangGraph + Milvus + Redis + PostgreSQL）
+
+# ==================== Web 框架 ====================
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+gradio>=5.0.0
+
+# ==================== 异步 & 网络 ====================
+httpx>=0.27.0
+
+# ==================== 数据库 & 中间件 ====================
+redis>=5.0.0          # 短时记忆
+asyncpg>=0.30.0       # PostgreSQL 异步驱动
+pymilvus>=2.4.0       # Milvus 向量数据库客户端
+
+# ==================== LangChain 生态 ====================
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-openai>=0.2.0       # ChatOpenAI（DeepSeek 兼容）
+langchain-text-splitters>=0.3.0
+langgraph>=0.2.0              # ReAct Agent 状态图
+
+# ==================== LLM & 嵌入 ====================
+dashscope>=1.20.0              # 阿里云 DashScope（text-embedding-v4）
+
+# ==================== 文档解析 ====================
+python-docx>=1.1.0             # Word (.docx)
+pdfplumber>=0.11.0             # PDF
+python-pptx>=1.0.0             # PowerPoint (.pptx)
+
+# ==================== 可插拔追踪 ====================
+opentelemetry-api>=1.25.0
+opentelemetry-sdk>=1.25.0
+opentelemetry-exporter-otlp-proto-grpc>=1.25.0
