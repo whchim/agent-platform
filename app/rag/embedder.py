@@ -39,13 +39,27 @@ def get_embedder(
 
     elif provider == "openai_compatible":
         # OpenAI 兼容接口 — 支持 DeepSeek Embedding 等
-        # 复用 ChatOpenAI 同款 base_url / api_key 模式，连接任意兼容服务
-        raise NotImplementedError("OpenAI-compatible embedder not implemented yet")
+        # 复用 DashScope api_key 作为通用 API Key，DeepSeek base_url 作为接口地址
+        # check_embedding_ctx_length=False 避免非 OpenAI 官方的 token 长度校验误报
+        from langchain_openai import OpenAIEmbeddings
+
+        return OpenAIEmbeddings(
+            model=settings.embedding_model,
+            api_key=settings.dashscope_api_key,          
+            base_url=settings.deepseek_base_url,         # 复用 DeepSeek 的 base_url
+            check_embedding_ctx_length=False,            # 关闭非 OpenAI 官方的 token 长度检查
+        )
 
     elif provider == "sentence_transformers":
         # 本地模型 — 调用 sentence-transformers 库，免网络
         # 适合离线开发 / 快速验证，缺点：吃内存、吃 CPU
-        raise NotImplementedError("Sentence-transformers embedder not implemented yet")
+        # 注意：需要 `pip install sentence-transformers`（已加入 requirements.txt）
+        from langchain_community.embeddings import HuggingFaceEmbeddings
 
-    raise ValueError(f"不支持的嵌入类型: {provider}")  # pyright: ignore[reportUnreachable]
+        return HuggingFaceEmbeddings(
+            model_name=settings.embedding_model or "sentence-transformers/all-MiniLM-L6-v2",
+            # 本地模型，无需 api_key / base_url
+        )
+
+    raise ValueError(f"不支持的嵌入类型: {provider}")  
 

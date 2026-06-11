@@ -74,7 +74,7 @@ class LongTermMemory:
         self._collection.create_index(
             field_name="embedding",
             index_params=index_params,
-        )  # pyright: ignore[reportUnusedCallResult,reportUnusedCoroutine]
+        )
         self._collection.load()
         return self._collection
 
@@ -96,11 +96,11 @@ class LongTermMemory:
             [int(time.time())],              # INT64 时间戳
             [vector],                        # FLOAT_VECTOR
         ]
-        # 忽略未使用的 metadata（预留扩展用）
+        # TODO: metadata 参数当前被忽略，预留用于存储标签/重要性/来源等扩展字段
         _ = metadata
         result = col.insert(payload)
         # primary_keys 可以是单个 int 或列表，取首元素
-        return result.primary_keys[0]  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+        return result.primary_keys[0] 
 
 
     def search(
@@ -133,7 +133,7 @@ class LongTermMemory:
         )
 
         # Milvus 返回 SearchResult 对象，遍历命中列表
-        hits = results[0]  # pyright: ignore[reportIndexIssue] — pymilvus 类型存根不完整
+        hits = results[0]  # — pymilvus 类型存根不完整
         return [
             {
                 "id": hit.id,
@@ -142,7 +142,7 @@ class LongTermMemory:
                 "session_id": hit.entity.get("session_id"),
                 "created_at": hit.entity.get("created_at"),
             }
-            for hit in hits  # pyright: ignore[reportUnknownVariableType]
+            for hit in hits
         ]
 
 
@@ -159,8 +159,8 @@ class LongTermMemory:
             _ = col.delete(expr=expr)
         else:
             # 删除整个 Collection
-            if utility.has_collection(self._collection_name):  # pyright: ignore[reportUnnecessaryComparison]
-                _ = utility.drop_collection(self._collection_name)  # pyright: ignore[reportUnknownVariableType]
+            if utility.has_collection(self._collection_name):  
+                _ = utility.drop_collection(self._collection_name)  
             self._collection = None  # 下次访问 lazy 重建
 
 

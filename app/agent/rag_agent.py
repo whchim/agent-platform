@@ -11,6 +11,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from app.core.tracer import Tracer
+from app.memory.long_term import LongTermMemory
 from app.memory.short_term import ShortTermMemory
 from app.models import AgentRequest, AgentResponse, AgentStep
 from app.rag.retriever import MilvusRetriever
@@ -35,6 +36,7 @@ class RAGAgent:
         self,
         retriever: MilvusRetriever,
         memory: ShortTermMemory,
+        long_term_memory: LongTermMemory | None = None,  # 可选：长时向量记忆
     ):
         # LLM：DeepSeek，OpenAI 兼容接口
         self._llm: ChatOpenAI = ChatOpenAI(
@@ -45,6 +47,7 @@ class RAGAgent:
         )
         self._retriever: MilvusRetriever = retriever
         self._memory: ShortTermMemory = memory
+        self._long_term_memory: LongTermMemory | None = long_term_memory
         self._parser: StrOutputParser = StrOutputParser()  # LLM 输出 → 纯文本字符串
 
     async def run(self, request: AgentRequest) -> AgentResponse:
@@ -79,6 +82,21 @@ class RAGAgent:
             context = "\n\n---\n\n".join(
                 f"[来源: {d['source']}]\n{d['content']}" for d in docs
             )
+
+            # ---- 额外：搜索长时记忆（可选，失败不阻塞主流程） ----
+            if self._long_term_memory is not None:
+                try:
+                    ltm_results = self._long_term_memory.search(
+                        request.query, session_id=request.session_id, top_k=3
+                    )
+                    if ltm_results:
+                        ltm_text = "\n\n---\n\n".join(
+                            f"[长期记忆] {r['content']}" for r in ltm_results
+                        )
+                        context = f"{context}\n\n---\n\n{ltm_text}" if context else ltm_text
+                except Exception:
+                    pass
+
             steps.append(AgentStep(
                 step_type="retrieval",
                 content=f"检索到 {len(docs)} 条相关片段",
@@ -108,6 +126,17 @@ class RAGAgent:
                 steps=steps,
             )
             await self._memory.add(request.session_id, request, response)
+
+            # ---- 存入长时记忆（可选：只存储有实质内容的回答） ----
+            if self._long_term_memory is not None and answer and len(answer) > 50:
+                try:
+                    await self._long_term_memory.add(
+                        request.session_id,
+                        f"Q: {request.query}\nA: {answer[:1000]}",
+                    )
+                except Exception:
+                    pass
+
             root_span.end(ok=True)
             return response
 

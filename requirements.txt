@@ -24,6 +24,7 @@ langgraph>=0.2.0              # ReAct Agent 状态图
 
 # ==================== LLM & 嵌入 ====================
 dashscope>=1.20.0              # 阿里云 DashScope（text-embedding-v4）
+sentence-transformers>=3.0.0    # 本地嵌入模型（HuggingFaceEmbeddings 底层依赖）
 
 # ==================== 文档解析 ====================
 python-docx>=1.1.0             # Word (.docx)

@@ -51,7 +51,10 @@ async def lifespan(app: FastAPI):
     """
 
     # ---- 阶段 1：启动 — 初始化连接 ----
-    # PostgreSQL：异步连接池，预热 2 个连接，最多 10 个
+    # TODO: PostgreSQL 连接池已初始化但尚未用于任何数据持久化。
+    # 后续计划：添加 SQLAlchemy ORM 模型（用户表 / Agent 运行日志 / 工具调用统计等），
+    # 届时通过 request.app.state.pg_pool 执行 SQL 查询。
+    # 当前保留连接池是为了避免后续重复修改生命周期管理代码。
     pg_pool = await asyncpg.create_pool(
         dsn=settings.pg_dsn,
         min_size=2,         # 启动时最少预热 2 个连接
@@ -77,7 +80,13 @@ async def lifespan(app: FastAPI):
     retriever = MilvusRetriever(embedder)
     memory = ShortTermMemory(redis_client)
 
-    # 把 search_knowledge 包装成 LangChain Tool（捕获 retriever + reranker）
+    # 长时记忆：基于 Milvus 向量存储，语义检索历史知识（可选，失败不阻塞主流程）
+    from app.memory.long_term import LongTermMemory
+    long_term_memory = LongTermMemory(embedder)
+
+    # 把 search_knowledge 包装成 LangChain Tool
+    # 注意：@tool 装饰器生成的是 StructuredTool（非旧版 Tool），会根据函数签名自动
+    # 推断 args_schema，因此 LLM 传入 dict 参数（如 {"query": "..."}）能正确路由
     from langchain_core.tools import tool
 
     @tool
@@ -94,6 +103,7 @@ async def lifespan(app: FastAPI):
         retriever=retriever,
         memory=memory,
         tools=[search_tool],  # ReAct Agent 可以调用 RAG 搜索
+        long_term_memory=long_term_memory,
     )
 
     # ---- 阶段 2：运行 — 挂载到 app.state ----
@@ -103,6 +113,7 @@ async def lifespan(app: FastAPI):
     app.state.redis = redis_client
     app.state.retriever = retriever
     app.state.memory = memory
+    app.state.long_term_memory = long_term_memory
     app.state.executor = executor
 
     yield   # ← 服务在此运行
@@ -111,6 +122,7 @@ async def lifespan(app: FastAPI):
     # 先清理 app.state 引用，避免后续代码意外访问已关闭的连接
     del app.state.pg_pool
     del app.state.redis
+    del app.state.long_term_memory
 
     # 逆序释放：先关最后初始化的 Redis，最后关先初始化的 PG
     await redis_client.aclose()

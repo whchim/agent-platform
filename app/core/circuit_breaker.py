@@ -20,6 +20,10 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
+class CircuitBreakerOpenError(RuntimeError):
+    """熔断器打开时抛出，与工具自身异常区分"""
+
+
 class State(str, Enum):
     CLOSED = "closed"        # 正常通行
     OPEN = "open"            # 拒绝所有请求
@@ -91,7 +95,7 @@ class CircuitBreaker:
     def __call__(self, func: Callable[P, R]) -> Callable[P, R]:
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             if self.state == State.OPEN:
-                raise RuntimeError("熔断器已打开，拒绝调用")
+                raise CircuitBreakerOpenError("熔断器已打开，拒绝调用")
             try:
                 result = func(*args, **kwargs)
                 self.record_success()

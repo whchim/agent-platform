@@ -16,6 +16,7 @@
         span.end(ok=False, error=str(e))
 """
 
+import threading
 import time
 import uuid
 from typing import Any
@@ -43,27 +44,34 @@ class _ConsoleSpan:
 class _OtelSpan:
     """OpenTelemetry 模式 Span — gRPC 导出到 Jaeger / Tempo"""
 
-    _tracer = None  # 惰性初始化
+    _tracer = None          # 惰性初始化（全局唯一 Tracer 实例）
+    _tracer_lock = threading.Lock()  # 双重检查锁，防止并发初始化
 
     @classmethod
     def _get_tracer(cls):
+        # 快速路径：已初始化则直接返回，无锁开销
         if cls._tracer is not None:
             return cls._tracer
 
-        from opentelemetry import trace as otel_trace
-        from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor
-        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-        from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+        with cls._tracer_lock:
+            # 双重检查：拿到锁后再次确认，避免竞争窗口内的重复初始化
+            if cls._tracer is not None:
+                return cls._tracer
 
-        resource = Resource(attributes={SERVICE_NAME: "agent-platform"})
-        exporter = OTLPSpanExporter(endpoint=settings.otel_endpoint, insecure=True)
-        provider = TracerProvider(resource=resource)
-        provider.add_span_processor(BatchSpanProcessor(exporter))
-        otel_trace.set_tracer_provider(provider)
+            from opentelemetry import trace as otel_trace
+            from opentelemetry.sdk.trace import TracerProvider
+            from opentelemetry.sdk.trace.export import BatchSpanProcessor
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+            from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
-        cls._tracer = otel_trace.get_tracer(__name__)
-        return cls._tracer
+            resource = Resource(attributes={SERVICE_NAME: "agent-platform"})
+            exporter = OTLPSpanExporter(endpoint=settings.otel_endpoint, insecure=True)
+            provider = TracerProvider(resource=resource)
+            provider.add_span_processor(BatchSpanProcessor(exporter))
+            otel_trace.set_tracer_provider(provider)
+
+            cls._tracer = otel_trace.get_tracer(__name__)
+            return cls._tracer
 
     def __init__(self, name: str, session_id: str, **attrs: Any):
         self.span_name: str = name
